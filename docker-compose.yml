@@ -1,0 +1,173 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: shop-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-shop_db}
+      POSTGRES_USER: ${POSTGRES_USER:-shop_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shop_pass123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shop_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shop-network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: shop-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - shop-network
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: shop-keycloak
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-shop_db}
+      KC_DB_USERNAME: ${POSTGRES_USER:-shop_user}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-shop_pass123}
+      KC_HOSTNAME_STRICT: false
+      KC_HTTP_ENABLED: true
+      KC_PROXY: edge
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./keycloak-config/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - shop-network
+
+  api-gateway:
+    build:
+      context: ./backend
+      dockerfile: ApiGateway/Dockerfile
+    container_name: shop-api-gateway
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=postgres;Database=${POSTGRES_DB:-shop_db};Username=${POSTGRES_USER:-shop_user};Password=${POSTGRES_PASSWORD:-shop_pass123}
+      Keycloak__Authority: http://keycloak:8080/realms/shop-platform
+      Keycloak__Audience: shop-client
+      Services__ProductService: http://product-service:8081
+      Services__OrderService: http://order-service:8082
+      ReverseProxy__Clusters__products-cluster__Destinations__destination1__Address: http://product-service:8081
+      ReverseProxy__Clusters__orders-cluster__Destinations__destination1__Address: http://order-service:8082
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    networks:
+      - shop-network
+
+  product-service:
+    build:
+      context: ./backend
+      dockerfile: ProductService/Dockerfile
+    container_name: shop-product-service
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8081
+      ConnectionStrings__DefaultConnection: Host=postgres;Database=${POSTGRES_DB:-shop_db};Username=${POSTGRES_USER:-shop_user};Password=${POSTGRES_PASSWORD:-shop_pass123}
+      Keycloak__Authority: http://keycloak:8080/realms/shop-platform
+      Keycloak__Audience: shop-client
+      Elasticsearch__Uri: http://elasticsearch:9200
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    networks:
+      - shop-network
+
+  order-service:
+    build:
+      context: ./backend
+      dockerfile: OrderService/Dockerfile
+    container_name: shop-order-service
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8082
+      ConnectionStrings__DefaultConnection: Host=postgres;Database=${POSTGRES_DB:-shop_db};Username=${POSTGRES_USER:-shop_user};Password=${POSTGRES_PASSWORD:-shop_pass123}
+      Keycloak__Authority: http://keycloak:8080/realms/shop-platform
+      Keycloak__Audience: shop-client
+      Stripe__SecretKey: ${STRIPE_SECRET_KEY}
+      Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET}
+      Email__Host: ${EMAIL_HOST:-smtp.mailtrap.io}
+      Email__Port: ${EMAIL_PORT:-2525}
+      Email__Username: ${EMAIL_USERNAME}
+      Email__Password: ${EMAIL_PASSWORD}
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    networks:
+      - shop-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: shop-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:8080
+      REACT_APP_KEYCLOAK_URL: http://localhost:8180
+      REACT_APP_KEYCLOAK_REALM: shop-platform
+      REACT_APP_KEYCLOAK_CLIENT_ID: shop-client
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - shop-network
+
+volumes:
+  postgres_data:
+  elasticsearch_data:
+
+networks:
+  shop-network:
+    driver: bridge

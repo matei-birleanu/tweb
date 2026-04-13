@@ -1,0 +1,123 @@
+name: .NET Backend CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/dotnet-ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/dotnet-ci.yml'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: shop_db_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Restore dependencies
+      run: dotnet restore backend/ShopPlatform.sln
+
+    - name: Build
+      run: dotnet build backend/ShopPlatform.sln --no-restore --configuration Release
+
+    - name: Run tests
+      run: dotnet test backend/ShopPlatform.sln --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
+      env:
+        ConnectionStrings__DefaultConnection: "Host=localhost;Database=shop_db_test;Username=test_user;Password=test_pass"
+
+    - name: Code Coverage
+      run: dotnet test backend/ShopPlatform.sln --no-build --configuration Release --collect:"XPlat Code Coverage" --results-directory ./coverage
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: '**/test-results.trx'
+
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-reports
+        path: './coverage/**/*.xml'
+
+    - name: Generate coverage report
+      uses: codecov/codecov-action@v4
+      if: success()
+      with:
+        files: ./coverage/**/coverage.cobertura.xml
+        flags: backend
+        name: backend-coverage
+        fail_ci_if_error: false
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Install dotnet-format
+      run: dotnet tool install -g dotnet-format
+
+    - name: Run dotnet format
+      run: dotnet format backend/ShopPlatform.sln --verify-no-changes --verbosity diagnostic
+
+  security-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore backend/ShopPlatform.sln
+
+    - name: Run security scan
+      run: |
+        dotnet list backend/ShopPlatform.sln package --vulnerable --include-transitive || true

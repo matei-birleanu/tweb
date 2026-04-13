@@ -1,0 +1,94 @@
+name: Deploy to Production
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "release" ]; then
+          echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=latest" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Build and push images
+      run: |
+        services="ApiGateway ProductService OrderService"
+        for service in $services; do
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${service}:${{ steps.version.outputs.version }} \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${service}:latest \
+            --file backend/${service}/Dockerfile \
+            --push \
+            backend/
+        done
+
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ steps.version.outputs.version }} \
+          --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:latest \
+          --file frontend/Dockerfile \
+          --push \
+          frontend/
+
+    - name: Deploy to server
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.DEPLOY_HOST }}
+        username: ${{ secrets.DEPLOY_USER }}
+        key: ${{ secrets.DEPLOY_SSH_KEY }}
+        script: |
+          cd /opt/shop-platform
+          docker-compose pull
+          docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+          docker system prune -f
+
+    - name: Health check
+      run: |
+        sleep 30
+        curl -f ${{ secrets.DEPLOY_URL }}/health || exit 1
+
+    - name: Notify deployment
+      if: always()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: 'Deployment to ${{ github.event.inputs.environment || "production" }} ${{ job.status }}'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}

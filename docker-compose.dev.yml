@@ -1,0 +1,56 @@
+version: '3.8'
+
+# Development override for docker-compose.yml
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  api-gateway:
+    build:
+      context: ./backend
+      dockerfile: ApiGateway/Dockerfile
+      target: build
+    command: dotnet watch run --project ApiGateway/ApiGateway.csproj
+    volumes:
+      - ./backend:/src
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+
+  product-service:
+    build:
+      context: ./backend
+      dockerfile: ProductService/Dockerfile
+      target: build
+    command: dotnet watch run --project ProductService/ProductService.csproj
+    volumes:
+      - ./backend:/src
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8081
+
+  order-service:
+    build:
+      context: ./backend
+      dockerfile: OrderService/Dockerfile
+      target: build
+    command: dotnet watch run --project OrderService/OrderService.csproj
+    volumes:
+      - ./backend:/src
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8082
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: build
+    command: npm start
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - REACT_APP_API_URL=http://localhost:8080
+    ports:
+      - "3000:3000"
