@@ -51,10 +51,11 @@ jobs:
       run: |
         services="ApiGateway ProductService OrderService"
         for service in $services; do
+          lower_service=$(echo "${service}" | tr '[:upper:]' '[:lower:]')
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
-            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${service}:${{ steps.version.outputs.version }} \
-            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${service}:latest \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${lower_service}:${{ steps.version.outputs.version }} \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${lower_service}:latest \
             --file backend/${service}/Dockerfile \
             --push \
             backend/
@@ -90,5 +91,5 @@ jobs:
       uses: 8398a7/action-slack@v3
       with:
         status: ${{ job.status }}
-        text: 'Deployment to ${{ github.event.inputs.environment || "production" }} ${{ job.status }}'
+        text: "Deployment to ${{ github.event.inputs.environment || 'production' }} ${{ job.status }}"
         webhook_url: ${{ secrets.SLACK_WEBHOOK }}

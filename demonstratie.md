@@ -11,7 +11,7 @@
 **Entity Framework Core** ca ORM. Repository-ul separă accesul la date de logica business:
 
 ```csharp
-// Interfata — contract abstracta
+// Interfata — contract abstractad
 public interface IUserRepository
 {
     Task<User?> GetByIdAsync(int id);
