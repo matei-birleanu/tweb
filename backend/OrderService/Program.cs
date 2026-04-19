@@ -9,6 +9,7 @@ using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using AutoMapper;
 using Stripe;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -77,9 +78,26 @@ builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<IFeedbackRepository, FeedbackRepository>();
 
+// Register HttpClient for ProductService communication
+builder.Services.AddHttpClient("ProductService", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Services:ProductService"] ?? "http://localhost:8081");
+});
+
 // Register Services
 builder.Services.AddScoped<IUserService, OrderService.Services.UserService>();
-builder.Services.AddScoped<IOrderService, OrderService.Services.OrderService>();
+builder.Services.AddScoped<IOrderService>(sp =>
+{
+    var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+    var httpClient = httpClientFactory.CreateClient("ProductService");
+    return new OrderService.Services.OrderService(
+        sp.GetRequiredService<IOrderRepository>(),
+        sp.GetRequiredService<IMapper>(),
+        sp.GetRequiredService<IEmailService>(),
+        httpClient,
+        sp.GetRequiredService<ILogger<OrderService.Services.OrderService>>()
+    );
+});
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IFeedbackService, FeedbackService>();
 builder.Services.AddScoped<IEmailService, EmailService>();

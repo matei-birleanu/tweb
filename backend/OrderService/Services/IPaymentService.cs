@@ -13,4 +13,7 @@ public interface IPaymentService
     Task<PaymentDto> ProcessStripePaymentAsync(int orderId, string paymentMethodId);
     Task<PaymentDto> UpdatePaymentStatusAsync(int id, PaymentStatus status);
     Task<PaymentDto> RefundPaymentAsync(int id);
+    Task<string> CreateCheckoutSessionAsync(int orderId);
+    Task CompleteCheckoutPaymentAsync(int orderId, string transactionId);
+    Task<PaymentDto> VerifyCheckoutAsync(int orderId);
 }

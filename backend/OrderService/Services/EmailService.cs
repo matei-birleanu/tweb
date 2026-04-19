@@ -86,14 +86,14 @@ public class EmailService : IEmailService
 
             using var client = new SmtpClient();
             await client.ConnectAsync(
-                emailSettings["SmtpServer"] ?? "smtp.gmail.com",
-                int.Parse(emailSettings["SmtpPort"] ?? "587"),
+                emailSettings["Host"] ?? "smtp.mailtrap.io",
+                int.Parse(emailSettings["Port"] ?? "2525"),
                 MailKit.Security.SecureSocketOptions.StartTls
             );
 
             await client.AuthenticateAsync(
-                emailSettings["SmtpUsername"],
-                emailSettings["SmtpPassword"]
+                emailSettings["Username"],
+                emailSettings["Password"]
             );
 
             await client.SendAsync(message);

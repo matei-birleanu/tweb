@@ -11,17 +11,20 @@ public class OrderService : IOrderService
     private readonly IOrderRepository _repository;
     private readonly IMapper _mapper;
     private readonly IEmailService _emailService;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<OrderService> _logger;
 
     public OrderService(
         IOrderRepository repository,
         IMapper mapper,
         IEmailService emailService,
+        HttpClient httpClient,
         ILogger<OrderService> logger)
     {
         _repository = repository;
         _mapper = mapper;
         _emailService = emailService;
+        _httpClient = httpClient;
         _logger = logger;
     }
 
@@ -53,6 +56,23 @@ public class OrderService : IOrderService
     {
         var order = _mapper.Map<Order>(orderDto);
         order.Status = OrderStatus.Pending;
+
+        // Decrement stock in ProductService
+        try
+        {
+            var stockChange = -orderDto.Quantity;
+            var response = await _httpClient.PatchAsJsonAsync(
+                $"/api/products/internal/{orderDto.ProductId}/stock", stockChange);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Failed to update stock for product {ProductId}: {Status}",
+                    orderDto.ProductId, response.StatusCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to call ProductService to update stock");
+        }
 
         var createdOrder = await _repository.CreateAsync(order);
 

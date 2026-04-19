@@ -42,7 +42,7 @@ const FeedbackPage: React.FC = () => {
       formik.resetForm();
     },
     onError: (err: any) => {
-      setError(err?.response?.data?.message || 'Failed to submit feedback.');
+      setError(err?.message || err?.response?.data?.message || 'Failed to submit feedback.');
       setSuccess(false);
     },
   });

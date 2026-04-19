@@ -144,4 +144,21 @@ public class ProductsController : ControllerBase
         }
         return Ok(new { message = "Stock updated successfully" });
     }
+
+    /// <summary>
+    /// Internal endpoint for service-to-service stock updates
+    /// </summary>
+    [HttpPatch("internal/{id}/stock")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> InternalUpdateProductStock(int id, [FromBody] int quantity)
+    {
+        var result = await _productService.UpdateProductStockAsync(id, quantity);
+        if (!result)
+        {
+            return NotFound(new { message = $"Product with ID {id} not found" });
+        }
+        return Ok(new { message = "Stock updated successfully" });
+    }
 }

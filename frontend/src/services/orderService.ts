@@ -43,4 +43,13 @@ export const orderService = {
     const response = await apiClient.get<Order[]>('/api/orders');
     return wrapAsPaginated(response.data, page, size);
   },
+
+  payOrder: async (orderId: number): Promise<string> => {
+    const response = await apiClient.post<{ url: string }>(`/api/payments/checkout/${orderId}`);
+    return response.data.url;
+  },
+
+  verifyPayment: async (orderId: number): Promise<void> => {
+    await apiClient.post(`/api/payments/verify/${orderId}`);
+  },
 };

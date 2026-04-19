@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OrderService.DTOs;
@@ -12,6 +13,14 @@ public class FeedbackController : ControllerBase
 {
     private readonly IFeedbackService _feedbackService;
     private readonly ILogger<FeedbackController> _logger;
+
+    private static readonly Dictionary<string, FeedbackCategory> CategoryMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["PRODUCT_QUALITY"] = FeedbackCategory.ProductQuality,
+        ["DELIVERY"] = FeedbackCategory.DeliveryService,
+        ["CUSTOMER_SERVICE"] = FeedbackCategory.CustomerSupport,
+        ["WEBSITE"] = FeedbackCategory.WebsiteUsability,
+    };
 
     public FeedbackController(IFeedbackService feedbackService, ILogger<FeedbackController> logger)
     {
@@ -98,7 +107,22 @@ public class FeedbackController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var feedback = await _feedbackService.CreateFeedbackAsync(feedbackDto);
+        // Extract user ID from JWT claims
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid user token" });
+        }
+
+        // Map frontend category string to backend enum
+        if (!CategoryMap.TryGetValue(feedbackDto.Category, out var category))
+        {
+            return BadRequest(new { message = "Invalid category" });
+        }
+
+        var feedback = await _feedbackService.CreateFeedbackFromRequestAsync(
+            userId, category, feedbackDto.Comment, feedbackDto.Rating);
+
         return CreatedAtAction(nameof(GetFeedbackById), new { id = feedback.Id }, feedback);
     }
 

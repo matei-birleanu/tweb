@@ -131,12 +131,15 @@ services:
       ConnectionStrings__DefaultConnection: Host=postgres;Database=${POSTGRES_DB:-shop_db};Username=${POSTGRES_USER:-shop_user};Password=${POSTGRES_PASSWORD:-shop_pass123}
       Keycloak__Authority: http://keycloak:8080/realms/shop-platform
       Keycloak__Audience: shop-client
-      Stripe__SecretKey: ${STRIPE_SECRET_KEY}
-      Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET}
-      Email__Host: ${EMAIL_HOST:-smtp.mailtrap.io}
-      Email__Port: ${EMAIL_PORT:-2525}
-      Email__Username: ${EMAIL_USERNAME}
-      Email__Password: ${EMAIL_PASSWORD}
+      Stripe__SecretKey: ${STRIPE_SECRET_KEY:-sk_test_51TO0i2Cu4shDwRrUaVqqpCiVZhYn17CiGjVyMxYKW43hTt3A4zQoij1UEguI45lnkRH4GMHVBGm4osDK182d3fSH00ntWpfUmF}
+      Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET:-whsec_183a1c5d39010ff9e82d3eebe2d7a9dac9eece4ba3c25ecbc123ce6cc92ce621}
+      Email__Host: ${Email__Host:-smtp.mailtrap.io}
+      Email__Port: ${Email__Port:-2525}
+      Email__Username: ${Email__Username:-}
+      Email__Password: ${Email__Password:-}
+      Email__FromEmail: ${Email__FromEmail:-noreply@shop-platform.com}
+      Email__FromName: ${Email__FromName:-Shop Platform}
+      Services__ProductService: http://product-service:8081
     ports:
       - "8082:8082"
     depends_on:

@@ -132,13 +132,24 @@ const ProductsPage: React.FC = () => {
                     />
                   </TableCell>
                   <TableCell>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => navigate(`/products/${product.id}`)}
-                    >
-                      View Details
-                    </Button>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => navigate(`/products/${product.id}`)}
+                      >
+                        View Details
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="primary"
+                        disabled={product.stock <= 0}
+                        onClick={() => navigate(`/products/${product.id}`)}
+                      >
+                        Buy
+                      </Button>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))

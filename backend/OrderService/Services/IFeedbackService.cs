@@ -11,6 +11,7 @@ public interface IFeedbackService
     Task<IEnumerable<FeedbackDto>> GetFeedbackByCategoryAsync(FeedbackCategory category);
     Task<IEnumerable<FeedbackDto>> GetUnresolvedFeedbackAsync();
     Task<FeedbackDto> CreateFeedbackAsync(CreateFeedbackDto feedbackDto);
+    Task<FeedbackDto> CreateFeedbackFromRequestAsync(int userId, FeedbackCategory category, string comment, int rating);
     Task<FeedbackDto> RespondToFeedbackAsync(int id, string adminResponse);
     Task<bool> DeleteFeedbackAsync(int id);
 }

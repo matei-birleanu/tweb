@@ -60,6 +60,23 @@ public class FeedbackService : IFeedbackService
         return _mapper.Map<FeedbackDto>(createdFeedback);
     }
 
+    public async Task<FeedbackDto> CreateFeedbackFromRequestAsync(int userId, FeedbackCategory category, string comment, int rating)
+    {
+        var feedback = new Feedback
+        {
+            UserId = userId,
+            Category = category,
+            Subject = $"{category} Feedback",
+            Message = comment,
+            Rating = rating,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        var createdFeedback = await _repository.CreateAsync(feedback);
+        return _mapper.Map<FeedbackDto>(createdFeedback);
+    }
+
     public async Task<FeedbackDto> RespondToFeedbackAsync(int id, string adminResponse)
     {
         var existingFeedback = await _repository.GetByIdAsync(id);

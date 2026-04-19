@@ -32,8 +32,9 @@ apiClient.interceptors.response.use(
       _retry?: boolean;
     };
 
-    // Handle 401 Unauthorized
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Handle 401 Unauthorized - skip for login/register endpoints
+    const isAuthEndpoint = originalRequest.url?.includes('/api/users/login') || originalRequest.url?.includes('/api/users/register');
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       // Try to refresh token
@@ -65,13 +66,19 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // For auth endpoints, pass through the original axios error so callers can read response.data
+    if (isAuthEndpoint) {
+      return Promise.reject(error);
+    }
+
     // Handle other errors
+    const data = error.response?.data as any;
     const errorResponse: ErrorResponse = {
-      message: error.response?.data?.message || error.message || 'An error occurred',
+      message: data?.message || data?.title || error.message || 'An error occurred',
       status: error.response?.status || 500,
       timestamp: new Date().toISOString(),
       path: error.config?.url,
-      errors: error.response?.data?.errors,
+      errors: data?.errors,
     };
 
     return Promise.reject(errorResponse);
